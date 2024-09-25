@@ -19,6 +19,8 @@ namespace Logica
         private Bitmap _imagBitmap;
         private DataGridView _dataGridView;
         private NumericUpDown _numericUpDown;
+        private Paginador<Estudiante> _paginador;
+        private string _accion = "insert";
         public LEstudiantes(List<TextBox> listTextBox, List<Label> listLabel, object[] objetos)
         {
             this.listTextBox = listTextBox;
@@ -73,9 +75,16 @@ namespace Logica
                                 }
                                 else
                                 {
-                                    listLabel[3].Text = "*Email ya registrado";
-                                    listLabel[3].ForeColor = Color.Red;
-                                    listTextBox[3].Focus();
+                                    if (user[0].id.Equals(_idEstudiante))
+                                    {
+                                        Save();
+                                    }
+                                    else
+                                    {
+                                        listLabel[3].Text = "*Email ya registrado";
+                                        listLabel[3].ForeColor = Color.Red;
+                                        listTextBox[3].Focus();
+                                    }
                                 }
                             }
                             else
@@ -96,12 +105,26 @@ namespace Logica
             {
                 var imageArray = uploadimage.ImageToByte(image.Image);
 
-                _Estudiante.Value(e => e.nid, listTextBox[0].Text)
-                       .Value(e => e.nombre, listTextBox[1].Text)
-                       .Value(e => e.apellido, listTextBox[2].Text)
-                       .Value(e => e.email, listTextBox[3].Text)
-                       .Value(e => e.imagen, imageArray)
-                       .Insert();
+                switch (_accion)
+                {
+                    case "insert":
+                        _Estudiante.Value(e => e.nid, listTextBox[0].Text)
+                           .Value(e => e.nombre, listTextBox[1].Text)
+                           .Value(e => e.apellido, listTextBox[2].Text)
+                           .Value(e => e.email, listTextBox[3].Text)
+                           .Value(e => e.imagen, imageArray)
+                           .Insert();
+                        break;
+                    case "update":
+                        _Estudiante.Where(u => u.id.Equals(_idEstudiante))
+                            .Set(e => e.nid, listTextBox[0].Text)
+                            .Set(e => e.nombre, listTextBox[1].Text)
+                            .Set(e => e.apellido, listTextBox[2].Text)
+                            .Set(e => e.email, listTextBox[3].Text)
+                            .Set(e => e.imagen, imageArray)
+                            .Update();
+                        break;
+                }
 
                 CommitTransaction();
                 Restablecer();
@@ -133,8 +156,10 @@ namespace Logica
                     c.nombre,
                     c.apellido,
                     c.email,
+                    c.imagen
                 }).Skip(inicio).Take(_reg_por_pagina).ToList();
                 _dataGridView.Columns[0].Visible = false;
+                _dataGridView.Columns[5].Visible = false;
                 _dataGridView.Columns[1].DefaultCellStyle.BackColor = Color.WhiteSmoke;
                 _dataGridView.Columns[3].DefaultCellStyle.BackColor = Color.WhiteSmoke;
             }
@@ -150,8 +175,77 @@ namespace Logica
                 }).ToList();
             }
         }
-        private void Restablecer()
+        private int _idEstudiante = 0;
+        public void GetEstudiante()
         {
+            _accion = "update";
+            _idEstudiante = Convert.ToInt16(_dataGridView.CurrentRow.Cells[0].Value);
+            listTextBox[0].Text = Convert.ToString(_dataGridView.CurrentRow.Cells[1].Value);
+            listTextBox[1].Text = Convert.ToString(_dataGridView.CurrentRow.Cells[2].Value);
+            listTextBox[2].Text = Convert.ToString(_dataGridView.CurrentRow.Cells[3].Value);
+            listTextBox[3].Text = Convert.ToString(_dataGridView.CurrentRow.Cells[4].Value);
+            try
+            {
+                byte[] arrayImagen = (byte[])_dataGridView.CurrentRow.Cells[5].Value;
+                image.Image = uploadimage.byteArrayToImage(arrayImagen);
+            }
+            catch (Exception)
+            {
+
+            }
+        }
+        private List<Estudiante> listEstudiante;
+        public void Paginador(string metodo)
+        {
+            switch (metodo)
+            {
+                case "Primero":
+                    _num_pagina = _paginador.primero();
+                    break;
+                case "Anterior":
+                    _num_pagina = _paginador.anterior();
+                    break;
+                case "Siguiente":
+                    _num_pagina = _paginador.siguiente();
+                    break;
+                case "Ultimo":
+                    _num_pagina = _paginador.ultimo();
+                    break;
+            }
+            BuscarEstudiante("");
+        }
+        public void RegistroPaginas()
+        {
+            _num_pagina = 1;
+            _reg_por_pagina = (int)_numericUpDown.Value;
+            var list = _Estudiante.ToList();
+            if (list.Count > 0)
+            {
+                _paginador = new Paginador<Estudiante>(listEstudiante, listLabel[4], _reg_por_pagina);
+                BuscarEstudiante("");
+            }
+        }
+        public void Eliminar()
+        {
+            if (_idEstudiante.Equals(0))
+            {
+                MessageBox.Show("Seleccione un estudiante", "Error");
+            }
+            else
+            {
+                if (MessageBox.Show("Desea eliminar al estudiante?", "Eliminar estudiante", 
+                        MessageBoxButtons.YesNo) == DialogResult.Yes)
+                {
+                    _Estudiante.Where(c => c.id.Equals(_idEstudiante)).Delete();
+                    Restablecer();
+                }
+            }
+        }
+        public void Restablecer()
+        {
+            _accion = "insert";
+            _idEstudiante = 0;
+            _num_pagina = 1;
             image.Image = _imagBitmap;
             listLabel[0].Text = "Nid";
             listLabel[1].Text = "Nombre";
@@ -165,6 +259,11 @@ namespace Logica
             listTextBox[1].Text = "";
             listTextBox[2].Text = "";
             listTextBox[3].Text = "";
+            listEstudiante = _Estudiante.ToList();
+            if (listEstudiante.Count > 0)
+            {
+                _paginador = new Paginador<Estudiante>(listEstudiante, listLabel[4], _reg_por_pagina); 
+            }
             BuscarEstudiante("");
         }
     }
